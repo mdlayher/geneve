@@ -106,7 +106,7 @@ func (h *Header) UnmarshalBinary(b []byte) error {
 	}
 
 	h.FlagOAM = (b[1] >> 7) == 1
-	h.FlagCritical = ((b[1] & 0x7f) >> 6) == 1
+	h.FlagCritical = ((b[1] & 0x40) >> 6) == 1
 
 	h.ProtocolType = ProtocolType(binary.BigEndian.Uint16(b[2:4]))
 
