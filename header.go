@@ -91,9 +91,17 @@ func (h *Header) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary unmarshals a byte slice into a Header.
 func (h *Header) UnmarshalBinary(b []byte) error {
+	_, err := h.unmarshalBinaryOffset(b)
+	return err
+}
+
+// unmarshalBinaryOffset unmarshals a byte slice into a Header, and returns
+// the offset of the payload trailing the Header, for consumption within
+// this package.
+func (h *Header) unmarshalBinaryOffset(b []byte) (int, error) {
 	// Must contain enough data to produce a Header
 	if len(b) < headerLen {
-		return io.ErrUnexpectedEOF
+		return 0, io.ErrUnexpectedEOF
 	}
 
 	h.Version = b[0] >> 6
@@ -102,7 +110,7 @@ func (h *Header) UnmarshalBinary(b []byte) error {
 	ol := int(b[0]&0x3f) * 4
 
 	if len(b) < headerLen+ol {
-		return io.ErrUnexpectedEOF
+		return 0, io.ErrUnexpectedEOF
 	}
 
 	h.FlagOAM = (b[1] >> 7) == 1
@@ -115,13 +123,15 @@ func (h *Header) UnmarshalBinary(b []byte) error {
 
 	// Check for no options present
 	if ol == 0 {
-		return nil
+		// Payload offset begins after header
+		return headerLen, nil
 	}
 
-	for i := 0; i < ol; {
+	i := headerLen
+	for i <= ol {
 		o := new(Option)
-		if err := o.UnmarshalBinary(b[headerLen+i:]); err != nil {
-			return err
+		if err := o.UnmarshalBinary(b[i:]); err != nil {
+			return 0, err
 		}
 
 		// Each option is offset by length of its header and data
@@ -129,5 +139,6 @@ func (h *Header) UnmarshalBinary(b []byte) error {
 		i += optionHeaderLen + len(o.Data)
 	}
 
-	return nil
+	// Payload offset occurs after header and all options
+	return i, nil
 }

@@ -423,3 +423,92 @@ func TestHeaderUnmarshalBinary(t *testing.T) {
 		}
 	}
 }
+
+func TestHeader_unmarshalBinaryOffset(t *testing.T) {
+	tests := []struct {
+		desc string
+		b    []byte
+		h    *Header
+		off  int
+	}{
+		{
+			desc: "no options OK",
+			b: []byte{
+				// Header
+				0x00,
+				0x00,
+				0x00, 0x00,
+				0x03, 0x02, 0x01,
+				0x00,
+				// Payload
+				1, 2, 3, 4,
+			},
+			h: &Header{
+				VNI: 0x00030201,
+			},
+			off: 8,
+		},
+		{
+			desc: "two options OK",
+			b: []byte{
+				// Header
+				0x05,
+				0xc0,
+				0x65, 0x58,
+				0xbb, 0xee, 0xff,
+				0x00,
+				// Option
+				0x00, 0x01,
+				0x82,
+				0x01,
+				0, 1, 2, 3,
+				// Option
+				0x00, 0x02,
+				0x04,
+				0x02,
+				4, 5, 6, 7, 8, 9, 10, 11,
+				// Payload
+				1, 2, 3, 4,
+			},
+			off: 28,
+			h: &Header{
+				Version:      Version,
+				FlagOAM:      true,
+				FlagCritical: true,
+				ProtocolType: ProtocolTypeEthernet,
+				VNI:          0x00bbeeff,
+				Options: []*Option{
+					{
+						OptionClass:  0x0001,
+						FlagCritical: true,
+						Type:         0x02,
+						Data:         []byte{0, 1, 2, 3},
+					},
+					{
+						OptionClass: 0x0002,
+						Type:        0x04,
+						Data:        []byte{4, 5, 6, 7, 8, 9, 10, 11},
+					},
+				},
+			},
+		},
+	}
+
+	for i, tt := range tests {
+		t.Logf("[%02d] test %q", i, tt.desc)
+
+		h := new(Header)
+		off, err := h.unmarshalBinaryOffset(tt.b)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if want, got := tt.h, h; !reflect.DeepEqual(want, got) {
+			t.Fatalf("unexpected Header:\n- want: %v\n-  got: %v", want, got)
+		}
+
+		if want, got := tt.off, off; want != got {
+			t.Fatalf("unexpected offset:\n- want: %v\n-  got: %v", want, got)
+		}
+	}
+}
